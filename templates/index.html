@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Comment Sentiment Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f6f8fc 0%, #e9ecef 100%);
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #ff0000 0%, #ff6b6b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hover-scale {
+            transition: transform 0.2s ease-in-out;
+        }
+        .hover-scale:hover {
+            transform: scale(1.02);
+        }
+        .card-shadow {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="container mx-auto px-4 py-12">
+        <div class="text-center mb-12">
+            <h1 class="text-5xl font-bold mb-4 gradient-text">YouTube Comment Sentiment Analysis</h1>
+            <p class="text-gray-600 text-lg">Analyze the sentiment of comments on any YouTube video in real-time</p>
+        </div>
+        
+        <div class="max-w-4xl mx-auto">
+            <!-- Main Card -->
+            <div class="glass-effect rounded-2xl p-8 card-shadow hover-scale">
+                <div class="mb-8">
+                    <label for="videoUrl" class="block text-gray-700 text-sm font-semibold mb-2">YouTube Video URL</label>
+                    <input type="text" id="videoUrl" 
+                           class="shadow-sm appearance-none border border-gray-300 rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition duration-200"
+                           placeholder="https://www.youtube.com/watch?v=...">
+                </div>
+                
+                <div class="flex gap-4 mb-6">
+                    <button onclick="analyzeComments()" 
+                            class="flex-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition duration-200 transform hover:scale-105">
+                        Analyze Comments
+                    </button>
+                    <button onclick="refreshAnalysis()" 
+                            class="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 transform hover:scale-105">
+                        Refresh
+                    </button>
+                </div>
+
+                <div class="flex items-center justify-between mb-6 p-4 bg-gray-50 rounded-lg">
+                    <div class="flex items-center space-x-4">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="autoRefresh" class="w-4 h-4 text-red-600 rounded border-gray-300 focus:ring-red-500">
+                            <label for="autoRefresh" class="ml-2 text-sm text-gray-700 font-medium">Auto-refresh every</label>
+                        </div>
+                        <select id="refreshInterval" class="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" disabled>
+                            <option value="1">1 minute</option>
+                            <option value="2">2 minutes</option>
+                            <option value="3">3 minutes</option>
+                            <option value="4">4 minutes</option>
+                            <option value="5" selected>5 minutes</option>
+                        </select>
+                    </div>
+                    <div id="lastUpdate" class="text-sm text-gray-500 font-medium"></div>
+                </div>
+                
+                <div id="loading" class="hidden mt-6 text-center">
+                    <div class="animate-spin rounded-full h-12 w-12 border-4 border-red-600 border-t-transparent mx-auto"></div>
+                    <p class="mt-4 text-gray-600 font-medium">Analyzing comments...</p>
+                </div>
+                
+                <div id="results" class="hidden mt-8">
+                    <!-- Stats Cards -->
+                    <div class="grid grid-cols-3 gap-6 mb-8">
+                        <div class="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl card-shadow hover-scale">
+                            <h3 class="text-green-800 font-semibold mb-2">Positive</h3>
+                            <p id="positiveCount" class="text-3xl font-bold text-green-600">0</p>
+                        </div>
+                        <div class="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-xl card-shadow hover-scale">
+                            <h3 class="text-gray-800 font-semibold mb-2">Neutral</h3>
+                            <p id="neutralCount" class="text-3xl font-bold text-gray-600">0</p>
+                        </div>
+                        <div class="bg-gradient-to-br from-red-50 to-red-100 p-6 rounded-xl card-shadow hover-scale">
+                            <h3 class="text-red-800 font-semibold mb-2">Negative</h3>
+                            <p id="negativeCount" class="text-3xl font-bold text-red-600">0</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Chart -->
+                    <div class="bg-white p-6 rounded-xl card-shadow mb-8">
+                        <div class="w-full h-80">
+                            <canvas id="sentimentChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Sample Comments Section -->
+                    <div class="space-y-8">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">Sample Comments Analysis</h2>
+                        
+                        <!-- Positive Comments -->
+                        <div class="bg-white rounded-xl p-6 card-shadow">
+                            <h3 class="text-lg font-semibold text-green-800 mb-4 flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z"/>
+                                </svg>
+                                Positive Comments
+                            </h3>
+                            <div id="positiveSamples" class="space-y-4"></div>
+                        </div>
+                        
+                        <!-- Neutral Comments -->
+                        <div class="bg-white rounded-xl p-6 card-shadow">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-1a1 1 0 11-2 0 1 1 0 012 0zm-3.646 5.646a.5.5 0 00.707 0l3-3a.5.5 0 00-.707-.707L10 11.793 7.854 9.646a.5.5 0 00-.707.707l3 3z"/>
+                                </svg>
+                                Neutral Comments
+                            </h3>
+                            <div id="neutralSamples" class="space-y-4"></div>
+                        </div>
+                        
+                        <!-- Negative Comments -->
+                        <div class="bg-white rounded-xl p-6 card-shadow">
+                            <h3 class="text-lg font-semibold text-red-800 mb-4 flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z"/>
+                                </svg>
+                                Negative Comments
+                            </h3>
+                            <div id="negativeSamples" class="space-y-4"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="error" class="hidden mt-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let sentimentChart = null;
+        let currentVideoUrl = '';
+        let autoRefreshInterval = null;
+
+        // Set up auto-refresh checkbox listener
+        document.getElementById('autoRefresh').addEventListener('change', function(e) {
+            const refreshInterval = document.getElementById('refreshInterval');
+            refreshInterval.disabled = !e.target.checked;
+            
+            if (e.target.checked) {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
+        });
+
+        // Set up refresh interval change listener
+        document.getElementById('refreshInterval').addEventListener('change', function(e) {
+            if (document.getElementById('autoRefresh').checked) {
+                startAutoRefresh();
+            }
+        });
+
+        function startAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+            
+            const minutes = parseInt(document.getElementById('refreshInterval').value);
+            autoRefreshInterval = setInterval(refreshAnalysis, minutes * 60 * 1000);
+            
+            // Show next refresh time
+            updateNextRefreshTime(minutes);
+        }
+
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+            document.getElementById('lastUpdate').textContent = 'Auto-refresh disabled';
+        }
+
+        function updateNextRefreshTime(minutes) {
+            const now = new Date();
+            const nextRefresh = new Date(now.getTime() + minutes * 60 * 1000);
+            const timeString = nextRefresh.toLocaleTimeString();
+            document.getElementById('lastUpdate').textContent = `Next refresh: ${timeString}`;
+        }
+
+        function updateLastUpdateTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            const autoRefresh = document.getElementById('autoRefresh').checked;
+            if (autoRefresh) {
+                const minutes = parseInt(document.getElementById('refreshInterval').value);
+                updateNextRefreshTime(minutes);
+            } else {
+                document.getElementById('lastUpdate').textContent = `Last updated: ${timeString}`;
+            }
+        }
+
+        async function analyzeComments() {
+            const videoUrl = document.getElementById('videoUrl').value;
+            if (!videoUrl) {
+                showError('Please enter a YouTube video URL');
+                return;
+            }
+            
+            currentVideoUrl = videoUrl;
+            await performAnalysis();
+        }
+
+        async function refreshAnalysis() {
+            if (!currentVideoUrl) {
+                showError('No video URL to refresh');
+                return;
+            }
+            await performAnalysis();
+        }
+
+        async function performAnalysis() {
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const error = document.getElementById('error');
+            
+            loading.classList.remove('hidden');
+            results.classList.add('hidden');
+            error.classList.add('hidden');
+            
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: currentVideoUrl }),
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to analyze comments');
+                }
+                
+                updateResults(data);
+                updateLastUpdateTime();
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                loading.classList.add('hidden');
+            }
+        }
+        
+        function updateResults(data) {
+            document.getElementById('positiveCount').textContent = data.positive;
+            document.getElementById('neutralCount').textContent = data.neutral;
+            document.getElementById('negativeCount').textContent = data.negative;
+            
+            updateChart(data);
+            updateSampleComments(data.samples);
+            
+            document.getElementById('results').classList.remove('hidden');
+        }
+        
+        function updateChart(data) {
+            if (sentimentChart) {
+                sentimentChart.destroy();
+            }
+            
+            const ctx = document.getElementById('sentimentChart').getContext('2d');
+            sentimentChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Positive', 'Neutral', 'Negative'],
+                    datasets: [{
+                        data: [data.positive, data.neutral, data.negative],
+                        backgroundColor: ['#10B981', '#6B7280', '#EF4444'],
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        },
+                    },
+                },
+            });
+        }
+
+        function updateSampleComments(samples) {
+            // Clear previous samples
+            document.getElementById('positiveSamples').innerHTML = '';
+            document.getElementById('neutralSamples').innerHTML = '';
+            document.getElementById('negativeSamples').innerHTML = '';
+
+            // Add new samples
+            samples.forEach(sample => {
+                const commentElement = document.createElement('div');
+                commentElement.className = 'p-4 rounded-lg border transition duration-200 hover:shadow-md';
+                
+                // Set background color based on sentiment
+                if (sample.sentiment === 'positive') {
+                    commentElement.className += ' bg-green-50 border-green-200';
+                } else if (sample.sentiment === 'negative') {
+                    commentElement.className += ' bg-red-50 border-red-200';
+                } else {
+                    commentElement.className += ' bg-gray-50 border-gray-200';
+                }
+
+                commentElement.innerHTML = `
+                    <p class="text-gray-700 mb-2">${sample.text}</p>
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="font-medium ${sample.sentiment === 'positive' ? 'text-green-700' : 
+                                                 sample.sentiment === 'negative' ? 'text-red-700' : 
+                                                 'text-gray-700'}">
+                            ${sample.sentiment.charAt(0).toUpperCase() + sample.sentiment.slice(1)}
+                        </span>
+                        <span class="text-gray-500">Score: ${sample.score.toFixed(2)}</span>
+                    </div>
+                `;
+
+                document.getElementById(`${sample.sentiment}Samples`).appendChild(commentElement);
+            });
+        }
+        
+        function showError(message) {
+            const error = document.getElementById('error');
+            error.textContent = message;
+            error.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html> 
